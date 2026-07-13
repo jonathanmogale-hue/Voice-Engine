@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Voice Math Formatter</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.17.0/katex.min.css" />
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.17.0/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root {
+    --ink: #16283d;
+    --ink-soft: #4b5a6d;
+    --paper: #eef2f5;
+    --grid-line: rgba(22,40,61,0.07);
+    --surface: #ffffff;
+    --border: #d8dfe6;
+    --brass: #ab7a35;
+    --brass-deep: #8a611f;
+    --redline: #c3392c;
+    --redline-deep: #a12e23;
+    --green: #2f7a52;
+    --green-deep: #226240;
+    --radius: 8px;
+    --shadow: 0 1px 2px rgba(22,40,61,0.05), 0 6px 20px rgba(22,40,61,0.06);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 24px 24px;
+    color: var(--ink);
+    font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+    padding: 22px 16px 60px;
+  }
+  .wrap { max-width: 740px; margin: 0 auto; }
+
+  /* Title block, styled after an engineering drawing title block */
+  .titleblock {
+    display: flex;
+    border: 1.5px solid var(--ink);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .titleblock .mark {
+    width: 50px;
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    border-right: 1.5px solid var(--ink);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--brass-deep);
+  }
+  .titleblock .main { flex: 1; padding: 9px 14px; min-width: 0; }
+  .titleblock .main h1 {
+    margin: 0; font-size: 14px; letter-spacing: 0.13em; text-transform: uppercase; font-weight: 700;
+  }
+  .titleblock .main .desc { font-size: 11.5px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+  .titleblock .rev {
+    width: 96px;
+    flex: 0 0 auto;
+    border-left: 1.5px solid var(--ink);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 9.5px; letter-spacing: 0.1em; color: var(--ink-soft); text-transform: uppercase;
+    padding: 4px;
+    text-align: center;
+  }
+  .titleblock .rev b { color: var(--ink); font-size: 12px; letter-spacing: 0.02em; text-transform: none; margin-top: 2px; }
+
+  main { margin-top: 16px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+
+  .input-row { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+  .mic-btn {
+    flex: 0 0 auto;
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    border: 2px solid var(--brass-deep);
+    background: var(--brass);
+    color: #fff;
+    font-size: 17px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s, transform .1s;
+  }
+  .mic-btn:hover:not(:disabled) { background: var(--brass-deep); }
+  .mic-btn:active:not(:disabled) { transform: scale(0.96); }
+  .mic-btn.recording { background: var(--redline); border-color: var(--redline-deep); animation: redlinepulse 1.3s infinite; }
+  .mic-btn:disabled { background: #b7bcc8; border-color: #9aa0ad; cursor: not-allowed; }
+  @keyframes redlinepulse {
+    0% { box-shadow: 0 0 0 0 rgba(195,57,44,0.45); }
+    70% { box-shadow: 0 0 0 13px rgba(195,57,44,0); }
+    100% { box-shadow: 0 0 0 0 rgba(195,57,44,0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mic-btn.recording { animation: none; }
+  }
+
+  textarea#inputBox {
+    flex: 1 1 220px;
+    min-height: 46px;
+    max-height: 140px;
+    resize: vertical;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 11px 12px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--ink);
+  }
+  textarea#inputBox:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+
+  button.convert-btn {
+    flex: 0 0 auto;
+    background: var(--ink);
+    color: #fff;
+    border: none;
+    padding: 0 18px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    height: 46px;
+  }
+  button.convert-btn:hover:not(:disabled) { background: #000; }
+  button.convert-btn:disabled { background: #b7bcc8; cursor: not-allowed; }
+  button:focus-visible, .mic-btn:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  .status-line { min-height: 16px; font-size: 12.5px; margin-top: 8px; color: var(--ink-soft); }
+  .status-line.warn { color: var(--redline-deep); }
+  .status-line.info { color: var(--brass-deep); }
+
+  .preview-area { margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--border); }
+  .preview-math {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    text-align: center;
+    font-size: 21px;
+    overflow-x: auto;
+    min-height: 28px;
+  }
+  .latex-edit-label { display: block; font-size: 11.5px; color: var(--ink-soft); margin: 10px 0 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  input.latex-edit {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: 'SF Mono', Consolas, Monaco, monospace;
+    font-size: 13px;
+    color: var(--ink);
+  }
+  input.latex-edit:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+  .mode-note { font-size: 11.5px; color: var(--ink-soft); margin-top: 8px; }
+
+  .preview-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .preview-actions button { padding: 8px 14px; border-radius: 6px; border: none; font-size: 13px; cursor: pointer; }
+  #addBtn { background: var(--green); color: #fff; }
+  #addBtn:hover { background: var(--green-deep); }
+  .ghost { background: transparent; border: 1px solid var(--border) !important; color: var(--ink); }
+  .ghost:hover { background: var(--paper); }
+
+  .worksheet-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .worksheet-header h2 { font-size: 13px; margin: 0; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-soft); }
+  .worksheet-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .worksheet-actions button.small { padding: 6px 10px; font-size: 11.5px; border-radius: 6px; cursor: pointer; }
+  .danger { color: var(--redline) !important; }
+
+  .worksheet-list { display: flex; flex-direction: column; gap: 9px; }
+  .empty-hint { color: var(--ink-soft); font-size: 13.5px; text-align: center; padding: 22px 0; margin: 0; }
+  .entry { display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: 6px; padding: 11px 13px; background: #fdfdfd; }
+  .entry .entry-num { flex: 0 0 auto; font-size: 12px; color: var(--brass-deep); font-weight: 700; width: 18px; }
+  .entry-math { flex: 1; overflow-x: auto; font-size: 17px; min-width: 0; }
+  .entry-text { flex: 1; color: var(--ink); font-size: 13.5px; font-style: italic; min-width: 0; }
+  .entry-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+  .entry-actions button.tiny { font-size: 10.5px; padding: 5px 8px; border-radius: 5px; border: 1px solid var(--border); background: #fff; cursor: pointer; white-space: nowrap; }
+  .entry-actions button.tiny:hover { background: var(--paper); }
+
+  .cheatsheet { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 16px; font-size: 12.5px; color: var(--ink-soft); }
+  .cheatsheet summary { cursor: pointer; font-weight: 700; color: var(--ink); font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .cheatsheet ul { margin: 10px 0 0; padding-left: 18px; line-height: 1.8; }
+  .cheatsheet code { background: var(--paper); padding: 1px 5px; border-radius: 4px; font-size: 12px; color: var(--ink); }
+
+  .footnote { text-align: center; font-size: 11px; color: var(--ink-soft); margin-top: 14px; line-height: 1.6; }
+
+  @media (max-width: 480px) {
+    .titleblock { flex-wrap: wrap; }
+    .titleblock .rev { width: 100%; border-left: none; border-top: 1.5px solid var(--ink); flex-direction: row; gap: 6px; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="titleblock">
+    <div class="mark">&Sigma;</div>
+    <div class="main">
+      <h1>Voice Math Formatter</h1>
+      <div class="desc">Speak or type a formula — it comes out properly typeset. For Mathematics, Science, Industrial Engineering &amp; Power Machines.</div>
+    </div>
+    <div class="rev">MODE<b id="modeBadge">TYPE OR SPEAK</b></div>
+  </div>
+
+  <main>
+    <section class="card">
+      <div class="input-row">
+        <button id="micBtn" class="mic-btn" title="Click to speak" aria-label="Start voice input">&#127908;</button>
+        <textarea id="inputBox" aria-label="Formula input" placeholder='Click the mic and speak, or type here — e.g. "x squared plus 3x minus 5"'></textarea>
+        <button id="convertBtn" class="convert-btn">Convert</button>
+      </div>
+      <div id="statusLine" class="status-line" role="status"></div>
+
+      <div id="previewArea" class="preview-area" hidden>
+        <div id="previewMath" class="preview-math"></div>
+        <label class="latex-edit-label" for="latexEdit">Edit LaTeX if it's not quite right</label>
+        <input id="latexEdit" class="latex-edit" type="text" />
+        <div id="modeNoteText" class="mode-note"></div>
+        <div class="preview-actions">
+          <button id="addBtn">+ Add to worksheet</button>
+          <button id="discardBtn" class="ghost">Discard</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="worksheet-header">
+        <h2>Worksheet</h2>
+        <div class="worksheet-actions">
+          <button id="addNoteBtn" class="ghost small">+ Text note</button>
+          <button id="copyAllBtn" class="ghost small">Copy all as LaTeX</button>
+          <button id="clearAllBtn" class="ghost small danger">Clear all</button>
+        </div>
+      </div>
+      <div id="worksheetList" class="worksheet-list">
+        <p class="empty-hint">Nothing here yet — convert a formula above, then add it.</p>
+      </div>
+    </section>
+
+    <details class="cheatsheet">
+      <summary>Phrases that work well</summary>
+      <ul>
+        <li><code>x squared plus 3x minus 5</code></li>
+        <li><code>the square root of b squared minus 4 a c</code></li>
+        <li><code>x sub 1 equals negative b plus or minus the square root of b squared minus 4ac, all over 2a</code></li>
+        <li><code>torque equals force times radius</code></li>
+        <li><code>efficiency equals output power over input power times 100 percent</code></li>
+        <li><code>90 degrees</code></li>
+        <li><code>F sub net equals m a</code></li>
+        <li><code>the sum from i equals 1 to n of i</code></li>
+      </ul>
+    </details>
+
+    <p class="footnote">Voice needs Chrome or Edge and microphone permission. Smart conversion runs while this is open in Claude; if it's ever unreachable, a built-in basic converter takes over automatically.</p>
+  </main>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var micBtn = document.getElementById('micBtn');
+  var inputBox = document.getElementById('inputBox');
+  var convertBtn = document.getElementById('convertBtn');
+  var statusLine = document.getElementById('statusLine');
+  var previewArea = document.getElementById('previewArea');
+  var previewMath = document.getElementById('previewMath');
+  var latexEdit = document.getElementById('latexEdit');
+  var modeNoteText = document.getElementById('modeNoteText');
+  var addBtn = document.getElementById('addBtn');
+  var discardBtn = document.getElementById('discardBtn');
+  var worksheetList = document.getElementById('worksheetList');
+  var addNoteBtn = document.getElementById('addNoteBtn');
+  var copyAllBtn = document.getElementById('copyAllBtn');
+  var clearAllBtn = document.getElementById('clearAllBtn');
+  var modeBadge = document.getElementById('modeBadge');
+
+  var entries = [];
+  var entryIdCounter = 0;
+  var recognizing = false;
+  var recognition = null;
+  var finalTranscript = '';
+
+  function setStatus(msg, kind) {
+    statusLine.textContent = msg || '';
+    statusLine.className = 'status-line ' + (kind || '');
+  }
+
+  function flashStatus(msg) {
+    setStatus(msg, 'info');
+    setTimeout(function () { setStatus('', ''); }, 2000);
+  }
+
+  function katexReady() {
+    return typeof katex !== 'undefined';
+  }
+
+  function renderInto(el, latex) {
+    if (!katexReady()) { el.textContent = latex; return; }
+    try {
+      katex.render(latex, el, { throwOnError: false, displayMode: true });
+    } catch (e) {
+      el.textContent = latex;
+    }
+  }
+
+  /* ---------- Speech recognition ---------- */
+  var SpeechCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechCtor) {
+    recognition = new SpeechCtor();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    try { recognition.lang = 'en-ZA'; } catch (e) {}
+
+    recognition.onresult = function (event) {
+      var interim = '';
+      for (var i = event.resultIndex; i < event.results.length; i++) {
+        var t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalTranscript += t + ' ';
+        else interim += t;
+      }
+      inputBox.value = (finalTranscript + interim).trim();
+    };
+
+    recognition.onerror = function (event) {
+      recognizing = false;
+      micBtn.classList.remove('recording');
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setStatus('Microphone access was blocked. Allow microphone access for this page, or type below instead.', 'warn');
+      } else if (event.error === 'no-speech') {
+        setStatus("Didn't catch anything — try again, or type below.", 'warn');
+      } else {
+        setStatus('Voice input error (' + event.error + '). Typing below still works.', 'warn');
+      }
+    };
+
+    recognition.onend = function () {
+      recognizing = false;
+      micBtn.classList.remove('recording');
+      var toSend = finalTranscript.trim();
+      finalTranscript = '';
+      if (toSend) handleConvert();
+    };
+
+    micBtn.addEventListener('click', function () {
+      if (recognizing) { recognition.stop(); return; }
+      finalTranscript = '';
+      inputBox.value = '';
+      try {
+        recognition.start();
+        recognizing = true;
+        micBtn.classList.add('recording');
+        setStatus('Listening — click the mic again when done.', 'info');
+      } catch (e) {
+        setStatus('Could not start voice input: ' + e.message, 'warn');
+      }
+    });
+  } else {
+    micBtn.disabled = true;
+    micBtn.title = 'Voice input needs Chrome or Edge';
+    setStatus("Voice input isn't available in this browser — Chrome or Edge works best. Typing below works fully.", 'info');
+  }
+
+  /* ---------- Convert (typed Enter, or button) ---------- */
+  convertBtn.addEventListener('click', handleConvert);
+  inputBox.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleConvert();
+    }
+  });
+
+  function handleConvert() {
+    var text = inputBox.value.trim();
+    if (!text) return;
+    setStatus('Converting…', 'info');
+    convertBtn.disabled = true;
+    convertViaClaude(text).then(function (latex) {
+      convertBtn.disabled = false;
+      showPreview(latex, 'ai');
+    }).catch(function () {
+      convertBtn.disabled = false;
+      var latex = basicParseToLatex(text);
+      showPreview(latex, 'basic');
+    });
+  }
+
+  function convertViaClaude(text) {
+    var systemPrompt = "You convert spoken or typed descriptions of mathematical, scientific, and engineering expressions into clean LaTeX, for a TVET college student studying Mathematics, Industrial Engineering, Science, and Power Machines.\n\nRules:\n- Output ONLY the LaTeX code. No explanation, no markdown fences, no surrounding dollar signs, no commentary.\n- If the input is plain non-mathematical text (a sentence, instruction, or label with no formula), return it exactly as plain text, unchanged.\n- Use \\frac{}{} for fractions, \\sqrt{} for roots, ^{} for exponents, _{} for subscripts.\n- Convert spoken Greek letters to symbols (theta -> \\theta, omega -> \\omega, alpha, beta, delta, mu, lambda, sigma, pi, etc).\n- \"degrees\" -> ^\\circ. \"plus or minus\" -> \\pm. \"times\"/\"multiplied by\" -> \\times. \"percent\" -> \\%.\n- Recognise common named formulas if spoken (quadratic formula, efficiency, torque, etc) and produce the correct standard formula.\n- Be forgiving of filler words and speech-recognition quirks; infer the intended meaning.";
+    return fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: text }]
+      })
+    }).then(function (response) {
+      if (!response.ok) throw new Error('API error ' + response.status);
+      return response.json();
+    }).then(function (data) {
+      var blocks = (data && data.content) || [];
+      var textOut = blocks.filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('');
+      var cleaned = textOut.trim();
+      cleaned = cleaned.replace(/^```[a-zA-Z]*\n?/, '').replace(/```$/, '').trim();
+      cleaned = cleaned.replace(/^\${1,2}|\${1,2}$/g, '').trim();
+      if (!cleaned) throw new Error('Empty response');
+      return cleaned;
+    });
+  }
+
+  /* ---------- Basic offline fallback parser ---------- */
+  function basicParseToLatex(text) {
+    var s = ' ' + text.toLowerCase().trim() + ' ';
+    var greek = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'theta', 'lambda', 'mu', 'pi', 'sigma', 'phi', 'omega', 'rho', 'tau'];
+    for (var i = 0; i < greek.length; i++) {
+      s = s.replace(new RegExp('\\b' + greek[i] + '\\b', 'g'), '\\' + greek[i] + ' ');
+    }
+    s = s.replace(/\bsquare root of ([a-z0-9\+\-\*\/\^\(\)\\ ]+?)(?=( over | plus | minus | equals |$))/g, '\\sqrt{$1}');
+    s = s.replace(/\bplus or minus\b/g, '\\pm ');
+    s = s.replace(/\bmultiplied by\b|\btimes\b/g, '\\times ');
+    s = s.replace(/\bdivided by\b/g, '\\div ');
+    s = s.replace(/\bdegrees\b/g, '^\\circ ');
+    s = s.replace(/\bpercent\b/g, '\\% ');
+    s = s.replace(/\bis equal to\b|\bequals\b/g, '=');
+    s = s.replace(/\b([a-z0-9]+) squared\b/g, '$1^2');
+    s = s.replace(/\b([a-z0-9]+) cubed\b/g, '$1^3');
+    s = s.replace(/\b([a-z0-9\\{}\^\_ ]+?) over ([a-z0-9\\{}\^\_\(\)\. ]+?)(?=( plus | minus |$))/g, '\\frac{$1}{$2}');
+    return s.trim();
+  }
+
+  /* ---------- Preview + worksheet ---------- */
+  function showPreview(latex, mode) {
+    previewArea.hidden = false;
+    latexEdit.value = latex;
+    renderInto(previewMath, latex);
+    modeNoteText.textContent = mode === 'ai'
+      ? 'Converted using Claude — handles free-form phrasing.'
+      : "Converted using the built-in basic parser (couldn't reach the smart conversion) — simple patterns only. Edit the LaTeX above if needed.";
+    modeBadge.textContent = mode === 'ai' ? 'AI' : 'BASIC';
+    setStatus('', '');
+  }
+
+  latexEdit.addEventListener('input', function () { renderInto(previewMath, latexEdit.value); });
+
+  addBtn.addEventListener('click', function () {
+    var latex = latexEdit.value.trim();
+    if (!latex) return;
+    entries.push({ id: ++entryIdCounter, type: 'math', latex: latex });
+    renderWorksheet();
+    previewArea.hidden = true;
+    inputBox.value = '';
+    inputBox.focus();
+  });
+
+  discardBtn.addEventListener('click', function () {
+    previewArea.hidden = true;
+    inputBox.value = '';
+  });
+
+  addNoteBtn.addEventListener('click', function () {
+    var note = window.prompt('Text note (e.g. "Step 1: rearrange the equation")');
+    if (note && note.trim()) {
+      entries.push({ id: ++entryIdCounter, type: 'text', text: note.trim() });
+      renderWorksheet();
+    }
+  });
+
+  function renderWorksheet() {
+    if (entries.length === 0) {
+      worksheetList.innerHTML = '<p class="empty-hint">Nothing here yet — convert a formula above, then add it.</p>';
+      return;
+    }
+    worksheetList.innerHTML = '';
+    entries.forEach(function (entry, idx) {
+      var row = document.createElement('div');
+      row.className = 'entry';
+
+      var num = document.createElement('div');
+      num.className = 'entry-num';
+      num.textContent = (idx + 1) + '.';
+      row.appendChild(num);
+
+      var mathDiv = null;
+      if (entry.type === 'math') {
+        mathDiv = document.createElement('div');
+        mathDiv.className = 'entry-math';
+        renderInto(mathDiv, entry.latex);
+        row.appendChild(mathDiv);
+      } else {
+        var textDiv = document.createElement('div');
+        textDiv.className = 'entry-text';
+        textDiv.textContent = entry.text;
+        row.appendChild(textDiv);
+      }
+
+      var actions = document.createElement('div');
+      actions.className = 'entry-actions';
+
+      if (entry.type === 'math') {
+        var copyBtn = document.createElement('button');
+        copyBtn.textContent = 'Copy LaTeX';
+        copyBtn.className = 'tiny';
+        copyBtn.onclick = function () { copyText(entry.latex); };
+        actions.appendChild(copyBtn);
+
+        var imgBtn = document.createElement('button');
+        imgBtn.textContent = 'Copy image';
+        imgBtn.className = 'tiny';
+        imgBtn.onclick = function () { copyAsImage(mathDiv, imgBtn); };
+        actions.appendChild(imgBtn);
+      }
+
+      var delBtn = document.createElement('button');
+      delBtn.textContent = '✕';
+      delBtn.className = 'tiny danger';
+      delBtn.setAttribute('aria-label', 'Delete entry ' + (idx + 1));
+      delBtn.onclick = function () {
+        entries = entries.filter(function (e) { return e.id !== entry.id; });
+        renderWorksheet();
+      };
+      actions.appendChild(delBtn);
+
+      row.appendChild(actions);
+      worksheetList.appendChild(row);
+    });
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        function () { flashStatus('Copied.'); },
+        function () { flashStatus('Could not copy — select and copy manually.'); }
+      );
+    } else {
+      flashStatus('Clipboard not available — select and copy manually.');
+    }
+  }
+
+  function copyAsImage(node, btn) {
+    if (typeof html2canvas === 'undefined') { flashStatus('Image export not available.'); return; }
+    var origLabel = btn.textContent;
+    btn.textContent = '…';
+    var afterFonts = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+    afterFonts.then(function () {
+      return html2canvas(node, { backgroundColor: '#ffffff', scale: 3 });
+    }).then(function (canvas) {
+      canvas.toBlob(function (blob) {
+        if (navigator.clipboard && window.ClipboardItem) {
+          navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(
+            function () { btn.textContent = 'Copied!'; setTimeout(function () { btn.textContent = origLabel; }, 1400); },
+            function () { downloadBlob(blob, btn, origLabel); }
+          );
+        } else {
+          downloadBlob(blob, btn, origLabel);
+        }
+      });
+    }).catch(function () {
+      btn.textContent = origLabel;
+      flashStatus('Could not create image.');
+    });
+  }
+
+  function downloadBlob(blob, btn, origLabel) {
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.download = 'equation.png';
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+    btn.textContent = 'Downloaded';
+    setTimeout(function () { btn.textContent = origLabel; }, 1400);
+  }
+
+  copyAllBtn.addEventListener('click', function () {
+    var all = entries.map(function (e) { return e.type === 'math' ? e.latex : e.text; }).join('\n');
+    if (!all) { flashStatus('Nothing to copy yet.'); return; }
+    copyText(all);
+  });
+
+  clearAllBtn.addEventListener('click', function () {
+    if (entries.length && window.confirm('Clear the whole worksheet?')) {
+      entries = [];
+      renderWorksheet();
+    }
+  });
+});
+</script>
+</body>
+</html>
