@@ -330,37 +330,53 @@ document.addEventListener('DOMContentLoaded', function () {
       inputBox.value = (finalTranscript + interim).trim();
     };
 
+    function setRecordingUI(isRecording) {
+      micBtn.classList.toggle('recording', isRecording);
+      micBtn.innerHTML = isRecording ? '&#9632;' : '&#127908;';
+      micBtn.title = isRecording ? 'Click to stop recording' : 'Click to speak';
+      micBtn.setAttribute('aria-label', isRecording ? 'Stop voice input' : 'Start voice input');
+    }
+
     recognition.onerror = function (event) {
       recognizing = false;
-      micBtn.classList.remove('recording');
+      setRecordingUI(false);
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setStatus('Microphone access was blocked. Allow microphone access for this page, or type below instead.', 'warn');
       } else if (event.error === 'no-speech') {
         setStatus("Didn't catch anything — try again, or type below.", 'warn');
-      } else {
+      } else if (event.error !== 'aborted') {
         setStatus('Voice input error (' + event.error + '). Typing below still works.', 'warn');
       }
     };
 
     recognition.onend = function () {
       recognizing = false;
-      micBtn.classList.remove('recording');
+      setRecordingUI(false);
       var toSend = finalTranscript.trim();
       finalTranscript = '';
       if (toSend) handleConvert();
     };
 
     micBtn.addEventListener('click', function () {
-      if (recognizing) { recognition.stop(); return; }
+      if (recognizing) {
+        recognition.stop();
+        return;
+      }
       finalTranscript = '';
       inputBox.value = '';
       try {
         recognition.start();
         recognizing = true;
-        micBtn.classList.add('recording');
-        setStatus('Listening — click the mic again when done.', 'info');
+        setRecordingUI(true);
+        setStatus('Listening — click the mic (or press Esc) to stop.', 'info');
       } catch (e) {
         setStatus('Could not start voice input: ' + e.message, 'warn');
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && recognizing) {
+        recognition.stop();
       }
     });
   } else {
