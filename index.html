@@ -435,6 +435,9 @@ document.addEventListener('DOMContentLoaded', function () {
     s = s.replace(/\b([a-z0-9]+) squared\b/g, '$1^2');
     s = s.replace(/\b([a-z0-9]+) cubed\b/g, '$1^3');
     s = s.replace(/\b([a-z0-9\\{}\^\_ ]+?) over ([a-z0-9\\{}\^\_\(\)\. ]+?)(?=( plus | minus |$))/g, '\\frac{$1}{$2}');
+    s = s.replace(/\bplus\b/g, ' + ');
+    s = s.replace(/\bminus\b/g, ' - ');
+    s = s.replace(/\s+/g, ' ');
     return s.trim();
   }
 
